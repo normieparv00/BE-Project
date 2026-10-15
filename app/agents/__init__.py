@@ -1,7 +1,7 @@
-"""Security review multi-agent implementations."""
+"""Security review agent implementations."""
 
-from app.agents.fix_suggestion import FixSuggestionAgent
 from app.agents.scanner import ScannerAgent
 from app.agents.triage import TriageAgent
+from app.agents.fix_suggestion import FixSuggestionAgent
 
-__all__ = ["FixSuggestionAgent", "ScannerAgent", "TriageAgent"]
+__all__ = ["ScannerAgent", "TriageAgent", "FixSuggestionAgent"]

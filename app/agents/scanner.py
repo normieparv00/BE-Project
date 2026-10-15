@@ -1,4 +1,4 @@
-"""Deterministic security scanner agent coordinating Semgrep and Bandit."""
+"""Static analysis scanner agent orchestrating Semgrep and Bandit."""
 
 import logging
 from pathlib import Path
@@ -12,8 +12,15 @@ from app.services.semgrep import SemgrepError, SemgrepService
 logger = logging.getLogger(__name__)
 
 
+def _has_python_files(path: Path) -> bool:
+    """Check if target path is a Python file or contains any .py files."""
+    if path.is_file():
+        return path.suffix.lower() == ".py"
+    return any(path.rglob("*.py"))
+
+
 class ScannerAgent:
-    """Agent 1: Executes deterministic static analysis tools and aggregates findings."""
+    """Coordinates static analysis scanners and consolidates findings."""
 
     def __init__(
         self,
@@ -30,65 +37,49 @@ class ScannerAgent:
         include_semgrep: bool = True,
         include_bandit: bool = True,
     ) -> Tuple[List[NormalizedFinding], List[str]]:
-        """Run configured static analysis scanners on target directory/file.
-
-        Args:
-            target_path: Path to codebase or file to scan.
-            include_semgrep: Whether to run Semgrep engine.
-            include_bandit: Whether to run Bandit engine.
-
-        Returns:
-            Tuple of (aggregated normalized findings, list of scanner error messages).
-        """
+        """Run enabled scanners against target directory or file."""
         findings: List[NormalizedFinding] = []
         errors: List[str] = []
 
-        path_obj = Path(target_path)
-        if not path_obj.exists():
-            error_msg = f"Target repository path does not exist: {target_path}"
-            logger.error(error_msg)
-            return [], [error_msg]
+        target = Path(target_path)
+        if not target.exists():
+            msg = f"Target repository path does not exist: {target_path}"
+            logger.error(msg)
+            return [], [msg]
 
-        # 1. Execute Semgrep scan
+        # Semgrep scan
         if include_semgrep:
             try:
                 semgrep_findings = self.semgrep_service.run_scan(target_path)
                 findings.extend(semgrep_findings)
-            except SemgrepError as exc:
-                msg = f"Semgrep scan failed: {exc}"
-                logger.error(msg)
-                errors.append(msg)
-            except Exception as exc:
-                msg = f"Unexpected error during Semgrep execution: {exc}"
-                logger.exception(msg)
-                errors.append(msg)
+            except SemgrepError as e:
+                err_msg = f"Semgrep scan failed: {e}"
+                logger.error(err_msg)
+                errors.append(err_msg)
+            except Exception as e:
+                err_msg = f"Unexpected error during Semgrep execution: {e}"
+                logger.exception(err_msg)
+                errors.append(err_msg)
 
-        # 2. Execute Bandit scan (for Python files)
+        # Bandit scan (Python-only)
         if include_bandit:
-            # Check if directory contains python files or target itself is python
-            has_py = False
-            if path_obj.is_file() and path_obj.suffix == ".py":
-                has_py = True
-            elif path_obj.is_dir():
-                has_py = any(path_obj.glob("**/*.py"))
-
-            if has_py:
+            if _has_python_files(target):
                 try:
                     bandit_findings = self.bandit_service.run_scan(target_path)
                     findings.extend(bandit_findings)
-                except BanditError as exc:
-                    msg = f"Bandit scan failed: {exc}"
-                    logger.error(msg)
-                    errors.append(msg)
-                except Exception as exc:
-                    msg = f"Unexpected error during Bandit execution: {exc}"
-                    logger.exception(msg)
-                    errors.append(msg)
+                except BanditError as e:
+                    err_msg = f"Bandit scan failed: {e}"
+                    logger.error(err_msg)
+                    errors.append(err_msg)
+                except Exception as e:
+                    err_msg = f"Unexpected error during Bandit execution: {e}"
+                    logger.exception(err_msg)
+                    errors.append(err_msg)
             else:
-                logger.info("No Python files detected, skipping Bandit scan")
+                logger.info("No Python files found in target, skipping Bandit scan")
 
         logger.info(
-            "Scanner agent completed with %d findings and %d errors",
+            "Scan complete: %d findings, %d errors encountered",
             len(findings),
             len(errors),
         )
